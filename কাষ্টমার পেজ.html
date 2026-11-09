@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ইনভয়েস সার্চ ও প্রিন্ট - VAI VAI COMPUTER</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { font-family: 'Hind Siliguri', sans-serif; }
+        .mono-font { font-family: 'Courier Prime', monospace; }
+        @media print {
+            body { background: white !important; color: black !important; padding: 0 !important; margin: 0 !important; }
+            .no-print { display: none !important; }
+            .print-area { box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+            @page { size: A4 portrait; margin: 10mm; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800 antialiased flex flex-col items-center p-4">
+
+    <!-- সার্চ ও কন্ট্রোল প্যানেল -->
+    <header class="no-print w-full max-w-3xl bg-slate-900 text-white p-4 rounded-xl shadow-md mb-6 flex flex-col md:flex-row items-center justify-between gap-3">
+        <div class="flex items-center space-x-2">
+            <i data-lucide="search" class="text-blue-400 w-6 h-6"></i>
+            <h1 class="text-base font-bold">ইনভয়েস সার্চ ও প্রিন্ট পোর্টাল</h1>
+        </div>
+        <div class="flex-1 w-full max-w-md flex gap-2">
+            <input type="text" id="searchInput" placeholder="ইনভয়েস আইডি লিখুন (যেমন: 0180)..." 
+                   class="w-full bg-slate-800 text-white placeholder-gray-400 px-3 py-2 rounded-lg text-sm border border-slate-700 focus:outline-none focus:border-blue-500">
+            <button onclick="searchInvoice()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm rounded-lg font-medium transition">খুঁজুন</button>
+        </div>
+        <button onclick="window.print()" class="no-print bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1 shadow transition w-full md:w-auto justify-center">
+            <i data-lucide="printer" class="w-4 h-4"></i> PDF / প্রিন্ট
+        </button>
+    </header>
+
+    <!-- ইনভয়েস পেপার প্রিভিউ -->
+    <main class="w-full flex justify-center">
+        <div id="invoicePaper" class="print-area invoice-box w-[210mm] min-h-[297mm] bg-white p-6 md:p-8 border border-gray-300 shadow-xl text-gray-900 text-xs relative flex flex-col justify-between rounded-sm">
+            <div>
+                <div class="flex justify-between items-center mb-1 text-[11px] font-mono text-gray-600">
+                    <span>18.47</span>
+                    <span class="text-base font-bold text-gray-800 tracking-widest font-sans">INVOICE</span>
+                    <span id="viewHeaderDate">-</span>
+                </div>
+
+                <!-- হেডার ও কিউআর কোড -->
+                <div class="flex justify-between items-start border-b-2 border-gray-800 pb-3 mb-3">
+                    <div class="pr-2">
+                        <h1 id="viewShopName" class="text-2xl md:text-3xl font-extrabold tracking-wider text-gray-900 font-sans uppercase">VAI VAI COMPUTER</h1>
+                        <p class="text-[11px] mt-0.5"><span class="font-bold">Proprietor:</span> <span id="viewProprietor">Badsha</span></p>
+                        <p class="text-[11px] text-gray-700">Under Islami Bank, Faitong Bazar, Lama, Bandarban...</p>
+                        <p class="text-[11px] text-gray-700"><span class="font-bold">Phone:</span> 01842327770 / 01871-746120</p>
+                    </div>
+                    
+                    <div class="flex flex-col items-end min-w-[100px]">
+                        <div class="mb-1 p-1 bg-white border border-gray-300 rounded">
+                            <img src="https://i.ibb.co.com/xqBTyJD1/Photo-260730084640-2.jpg" alt="QR Code" class="w-[55px] h-[55px] object-contain">
+                        </div>
+                        
+                        <!-- বারকোডের নিচের নাম্বার রিমুভ করা হয়েছে -->
+                        <div class="text-right mt-1 font-mono text-[11px]">
+                            <p><span class="font-bold">Invoice no:</span> <span id="viewInvoiceNo" class="font-bold text-black">-</span></p>
+                            <p><span class="font-bold">Date:</span> <span id="viewDate">-</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ক্রেতার তথ্য -->
+                <div class="mb-4 bg-gray-50 p-2 border border-gray-200 rounded-sm">
+                    <p class="font-bold text-gray-800 text-[11px]">BILL TO :</p>
+                    <div class="grid grid-cols-2 text-[11px] mt-1">
+                        <p><span class="font-semibold text-gray-600">Name :</span> <span id="viewCustomerName" class="font-bold">-</span></p>
+                        <p><span class="font-semibold text-gray-600">Mobile :</span> <span id="viewCustomerMobile">-</span></p>
+                    </div>
+                </div>
+
+                <!-- প্রোডাক্ট টেবিল -->
+                <table class="w-full border-collapse border border-gray-800 text-left text-[11px] mb-4">
+                    <thead>
+                        <tr class="bg-gray-100 border-b border-gray-800 font-bold uppercase text-[10px]">
+                            <th class="border border-gray-800 p-1.5 w-10 text-center">S/L</th>
+                            <th class="border border-gray-800 p-1.5">Product Description</th>
+                            <th class="border border-gray-800 p-1.5 text-center w-16">QTY</th>
+                            <th class="border border-gray-800 p-1.5 text-right w-24">UNIT PRICE</th>
+                            <th class="border border-gray-800 p-1.5 text-right w-24">TOTAL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="viewProductTable"></tbody>
+                </table>
+
+                <!-- হিসাব-নিকাশ -->
+                <div class="flex justify-end mb-4">
+                    <table class="w-full md:w-1/2 border-collapse border border-gray-800 text-[11px]">
+                        <tr>
+                            <td class="border border-gray-800 p-1 font-bold bg-gray-50">PRE: DEU:</td>
+                            <td id="viewPreDue" class="border border-gray-800 p-1 text-right mono-font">0.0</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-800 p-1 font-bold bg-gray-50">SUB TOTAL:</td>
+                            <td id="viewSubTotal" class="border border-gray-800 p-1 text-right font-bold mono-font">BDT 0.0</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-800 p-1 font-bold bg-gray-50">TOTAL PAID:</td>
+                            <td id="viewTotalPaid" class="border border-gray-800 p-1 text-right mono-font">0.0</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-800 p-1 font-bold bg-gray-50">TOTAL DEU:</td>
+                            <td id="viewTotalDue" class="border border-gray-800 p-1 text-right font-bold text-black mono-font">BDT 0.0</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="space-y-1 text-[11px] border-t border-gray-200 pt-2 mb-4">
+                    <p><span class="font-bold text-gray-700">In Word:</span> <span id="viewInWord" class="italic">-</span></p>
+                    <p><span class="font-bold text-gray-700">Term & Condition:</span> <span id="viewTerms" class="italic">Products sold are not refundable...</span></p>
+                </div>
+
+                <p class="text-center text-[11px] italic font-semibold text-gray-700 mt-2">Thanks you for your Business..</p>
+            </div>
+
+            <!-- সিগনেচার ও ফুটার -->
+            <div class="mt-8">
+                <div class="grid grid-cols-3 text-center text-[11px] pt-8">
+                    <div class="flex flex-col items-center">
+                        <span class="font-serif italic text-blue-900 text-base font-bold border-b border-gray-400 px-2">Ruhul</span>
+                        <p class="font-bold border-t border-gray-800 pt-1 w-4/5 mt-1">Prepared by:</p>
+                        <p class="text-[10px] text-gray-600">Ruhul Amin</p>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="font-serif italic text-red-700 text-base font-bold border-b border-gray-400 px-2">Badsha</span>
+                        <p class="font-bold border-t border-gray-800 pt-1 w-4/5 mt-1">Checked by:</p>
+                        <p class="text-[10px] text-gray-600">Md: Badsha</p>
+                    </div>
+                    <div class="flex flex-col items-center justify-end">
+                        <p class="font-bold border-t border-gray-800 pt-1 w-4/5">Recevied by:</p>
+                    </div>
+                </div>
+
+                <div class="mt-6 text-center text-[11px] border-t border-gray-800 pt-2 text-gray-800">
+                    <p class="font-bold text-sm text-blue-900 font-sans">ভাই ভাই কম্পিউটার'স</p>
+                    <p class="text-[10px]">ruhulamin4232@gmail.com | https://web.facebook.com/rs4232</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- নোটিফিকেশন টোস্ট -->
+    <div id="toast" class="no-print fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-2 rounded-lg shadow-xl text-sm transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <span id="toastMsg">মেসেজ</span>
+    </div>
+
+    <!-- ফায়ারবেজ ও সার্চ স্ক্রিপ্ট -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAS9d4F-qM5FlSiZe0iASpLJZHHOWrDpGI",
+            authDomain: "vai-vai-computer-ee61e.firebaseapp.com",
+            databaseURL: "https://vai-vai-computer-ee61e-default-rtdb.firebaseio.com",
+            projectId: "vai-vai-computer-ee61e",
+            storageBucket: "vai-vai-computer-ee61e.firebasestorage.app",
+            messagingSenderId: "292854514048",
+            appId: "1:292854514048:web:228836f0b0a4c27393c165",
+            measurementId: "G-L4DZX85MMQ"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        window.onload = function() {
+            lucide.createIcons();
+            loadEmptyTable();
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const invQuery = urlParams.get('inv');
+            if(invQuery) {
+                document.getElementById('searchInput').value = invQuery;
+                searchInvoice();
+            }
+        };
+
+        function searchInvoice() {
+            const query = document.getElementById('searchInput').value.trim();
+            if(!query) {
+                showToast("দয়া করে ইনভয়েস আইডি লিখুন!");
+                return;
+            }
+
+            db.collection("invoices").doc(query).get().then((doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    document.getElementById('viewInvoiceNo').innerText = data.invoiceNo || query;
+                    document.getElementById('viewDate').innerText = data.date || '';
+                    document.getElementById('viewHeaderDate').innerText = data.date || '';
+                    document.getElementById('viewCustomerName').innerText = data.customerName || '-';
+                    document.getElementById('viewCustomerMobile').innerText = data.customerMobile || '-';
+
+                    const tableBody = document.getElementById('viewProductTable');
+                    tableBody.innerHTML = '';
+                    let subtotal = 0;
+
+                    const products = data.products || [];
+                    products.forEach((prod, index) => {
+                        const total = (prod.qty * prod.price);
+                        subtotal += total;
+
+                        const tr = document.createElement('tr');
+                        tr.className = "border-b border-gray-300";
+                        tr.innerHTML = `
+                            <td class="border-r border-l border-gray-800 p-1.5 text-center">${index + 1}</td>
+                            <td class="border-r border-l border-gray-800 p-1.5">${prod.desc}</td>
+                            <td class="border-r border-l border-gray-800 p-1.5 text-center mono-font">${parseFloat(prod.qty).toFixed(1)}</td>
+                            <td class="border-r border-l border-gray-800 p-1.5 text-right mono-font">${parseFloat(prod.price).toFixed(1)}</td>
+                            <td class="border-r border-l border-gray-800 p-1.5 text-right font-semibold mono-font">${total.toFixed(1)}</td>
+                        `;
+                        tableBody.appendChild(tr);
+                    });
+
+                    for (let i = products.length; i < 4; i++) {
+                        const tr = document.createElement('tr');
+                        tr.className = "h-8";
+                        tr.innerHTML = `<td class="border-r border-l border-gray-800"></td><td class="border-r border-l border-gray-800"></td><td class="border-r border-l border-gray-800"></td><td class="border-r border-l border-gray-800"></td><td class="border-r border-l border-gray-800"></td>`;
+                        tableBody.appendChild(tr);
+                    }
+
+                    const preDue = parseFloat(data.preDue) || 0;
+                    const totalPaid = parseFloat(data.totalPaid) || 0;
+                    const totalDue = (subtotal + preDue) - totalPaid;
+
+                    document.getElementById('viewPreDue').innerText = preDue > 0 ? preDue.toFixed(1) : '0.0';
+                    document.getElementById('viewSubTotal').innerText = `BDT ${subtotal.toLocaleString('en-US', {minimumFractionDigits: 1})}`;
+                    document.getElementById('viewTotalPaid').innerText = totalPaid > 0 ? totalPaid.toFixed(1) : '0.0';
+                    document.getElementById('viewTotalDue').innerText = `BDT ${totalDue.toLocaleString('en-US', {minimumFractionDigits: 1})}`;
+                    document.getElementById('viewInWord').innerText = data.inWord || '-';
+
+                    showToast(`ইনভয়েস #${query} সফলভাবে লোড হয়েছে!`);
+                } else {
+                    showToast("এই ইনভয়েস আইডি পাওয়া যায়নি!");
+                }
+            }).catch(() => {
+                showToast("ডাটা লোড করতে সমস্যা হয়েছে!");
+            });
+        }
+
+        function loadEmptyTable() {
+            const tableBody = document.getElementById('viewProductTable');
+            tableBody.innerHTML = '';
+            for (let i = 0; i < 4; i++) {
+                const tr = document.createElement('tr');
+                tr.className = "h-8";
+                tr.innerHTML = `<td class="border-r border-l border-gray-800"></td><td class="border-r border-l border-gray-800"></td><td class="border-r border-l border-gray-800"></td><td class="border-r border-l border-gray-800"></td><td class="border-r border-l border-gray-800"></td>`;
+                tableBody.appendChild(tr);
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+    </script>
+</body>
+</html>
